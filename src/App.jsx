@@ -1,47 +1,102 @@
-import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import Layout from './components/Layout';
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import ProductsPage from './pages/Products';
-import UsersPage from './pages/Users';
-import OrdersPage from './pages/Orders';
+import React from 'react';
+import { BrowserRouter } from 'react-router-dom';
+import AppRoutes from './routes/AppRoutes';
+import {
+  CssBaseline,
+  Box,
+  Drawer,
+  List,
+  ListItem,
+  ListItemText,
+  Toolbar,
+  AppBar,
+  Typography,
+} from '@mui/material';
+import { Link } from 'react-router-dom';
+import useAuthStore from './store/authStore';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-const queryClient = new QueryClient();
+const drawerWidth = 240;
 
-function App() {
+const App = () => {
+  const { isAuthenticated, logout } = useAuthStore();
+
+  const handleLogout = () => {
+    logout();
+  };
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route element={<ProtectedRoute />}>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/products" element={<ProductsPage />} />
-              <Route path="/users" element={<UsersPage />} />
-              <Route path="/orders" element={<OrdersPage />} />
-            </Route>
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
-        </BrowserRouter>
-        <ToastContainer position="bottom-right" autoClose={3000} />
-      </AuthProvider>
-    </QueryClientProvider>
+    <BrowserRouter>
+      <Box sx={{ display: 'flex' }}>
+        <CssBaseline />
+
+        {/* App Bar */}
+        {isAuthenticated && (
+          <>
+            <AppBar
+              position="fixed"
+              sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
+            >
+              <Toolbar>
+                <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+                  Admin Panel
+                </Typography>
+                <Typography
+                  onClick={handleLogout}
+                  sx={{ cursor: 'pointer', fontWeight: 500 }}
+                >
+                  Logout
+                </Typography>
+              </Toolbar>
+            </AppBar>
+
+            {/* Sidebar Drawer */}
+            <Drawer
+              variant="permanent"
+              sx={{
+                width: drawerWidth,
+                flexShrink: 0,
+                [`& .MuiDrawer-paper`]: { width: drawerWidth, boxSizing: 'border-box' },
+              }}
+            >
+              <Toolbar />
+              <List>
+                <ListItem button component={Link} to="/dashboard">
+                  <ListItemText primary="Dashboard" />
+                </ListItem>
+                <ListItem button component={Link} to="/products">
+                  <ListItemText primary="Products" />
+                </ListItem>
+                <ListItem button component={Link} to="/users">
+                  <ListItemText primary="Users" />
+                </ListItem>
+                <ListItem button component={Link} to="/carts">
+                  <ListItemText primary="Carts" />
+                </ListItem>
+              </List>
+            </Drawer>
+          </>
+        )}
+
+        {/* Main Content Area */}
+        <Box
+          component="main"
+          sx={{
+            flexGrow: 1,
+            p: 3,
+            width: isAuthenticated ? `calc(100% - ${drawerWidth}px)` : '100%',
+          }}
+        >
+          {isAuthenticated && <Toolbar />}
+          <AppRoutes />
+        </Box>
+
+        {/* Toast Notifications */}
+        <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
+      </Box>
+    </BrowserRouter>
   );
-}
-
-function ProtectedRoute() {
-  const { isAuthenticated } = useAuth();
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" />;
-  }
-
-  return <Layout />;
-}
+};
 
 export default App;

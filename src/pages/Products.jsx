@@ -1,57 +1,196 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Container, CircularProgress, Alert } from '@mui/material';
-import ProductTable from '../components/ProductTable';
-import ProductFormModal from '../components/ProductForm';
-import { productsApi } from '../api/products';
-import { toast } from 'react-toastify';
+import React, { useEffect, useState } from 'react';
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  TextField,
+  Typography,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+} from '@mui/material';
+import useProductStore from '../store/productStore';
 
-export default function ProductsPage() {
-  const queryClient = useQueryClient();
-  const [openModal, setOpenModal] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null);
+const Products = () => {
+  const {
+    products,
+    fetchProducts,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+  } = useProductStore();
 
-  const { data: products, isLoading, isError } = useQuery({
-    queryKey: ['products'],
-    queryFn: () => productsApi.getAll().then(res => res.data),
+  const [open, setOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [currentProduct, setCurrentProduct] = useState({
+    title: '',
+    price: '',
+    description: '',
+    category: '',
+    image: '',
   });
+  const [editId, setEditId] = useState(null);
 
-  const deleteMutation = useMutation({
-    mutationFn: productsApi.delete,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      toast.success('Product deleted successfully');
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const handleOpen = () => {
+    setEditMode(false);
+    setCurrentProduct({
+      title: '',
+      price: '',
+      description: '',
+      category: '',
+      image: '',
+    });
+    setOpen(true);
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+  };
+
+  const handleSubmit = () => {
+    if (editMode) {
+      updateProduct(editId, currentProduct);
+    } else {
+      addProduct(currentProduct);
     }
-  });
+    setOpen(false);
+  };
 
   const handleEdit = (product) => {
-    setSelectedProduct(product);
-    setOpenModal(true);
+    setEditMode(true);
+    setEditId(product.id);
+    setCurrentProduct(product);
+    setOpen(true);
+  };
+
+  const handleDelete = (id) => {
+    deleteProduct(id);
   };
 
   return (
-    <Container>
-      <Button variant="contained" onClick={() => setOpenModal(true)} sx={{ mb: 2 }}>
+    <Box p={3}>
+      <Typography variant="h4" gutterBottom>
+        Products
+      </Typography>
+      <Button variant="contained" onClick={handleOpen}>
         Add Product
       </Button>
 
-      {isLoading && <CircularProgress />}
-      {isError && <Alert severity="error">Error loading products</Alert>}
+      <TableContainer component={Paper} sx={{ marginTop: 3 }}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Title</TableCell>
+              <TableCell>Price</TableCell>
+              <TableCell>Category</TableCell>
+              <TableCell>Description</TableCell>
+              <TableCell>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {products?.map((product) => (
+              <TableRow key={product.id}>
+                <TableCell>{product.title}</TableCell>
+                <TableCell>${product.price}</TableCell>
+                <TableCell>{product.category}</TableCell>
+                <TableCell>{product.description}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => handleEdit(product)}
+                    sx={{ mr: 1 }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    onClick={() => handleDelete(product.id)}
+                  >
+                    Delete
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
-      <ProductTable
-        products={products || []}
-        onEdit={handleEdit}
-        onDelete={(id) => deleteMutation.mutate(id)}
-      />
-
-      <ProductFormModal
-        open={openModal}
-        onClose={() => {
-          setOpenModal(false);
-          setSelectedProduct(null);
-        }}
-        product={selectedProduct}
-      />
-    </Container>
+      <Dialog open={open} onClose={handleClose}>
+        <DialogTitle>{editMode ? 'Edit Product' : 'Add Product'}</DialogTitle>
+        <DialogContent>
+          <TextField
+            label="Title"
+            fullWidth
+            margin="dense"
+            value={currentProduct.title}
+            onChange={(e) =>
+              setCurrentProduct({ ...currentProduct, title: e.target.value })
+            }
+          />
+          <TextField
+            label="Price"
+            fullWidth
+            margin="dense"
+            value={currentProduct.price}
+            onChange={(e) =>
+              setCurrentProduct({ ...currentProduct, price: e.target.value })
+            }
+          />
+          <TextField
+            label="Category"
+            fullWidth
+            margin="dense"
+            value={currentProduct.category}
+            onChange={(e) =>
+              setCurrentProduct({ ...currentProduct, category: e.target.value })
+            }
+          />
+          <TextField
+            label="Description"
+            fullWidth
+            margin="dense"
+            multiline
+            value={currentProduct.description}
+            onChange={(e) =>
+              setCurrentProduct({
+                ...currentProduct,
+                description: e.target.value,
+              })
+            }
+          />
+          <TextField
+            label="Image URL"
+            fullWidth
+            margin="dense"
+            value={currentProduct.image}
+            onChange={(e) =>
+              setCurrentProduct({ ...currentProduct, image: e.target.value })
+            }
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClose}>Cancel</Button>
+          <Button onClick={handleSubmit} variant="contained">
+            {editMode ? 'Update' : 'Add'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
-}
+};
+
+export default Products;

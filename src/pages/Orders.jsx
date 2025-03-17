@@ -1,63 +1,205 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Container, CircularProgress, Alert, Typography, Box } from '@mui/material';
-import CartTable from '../components/CartTable';
-import CartFormModal from '../components/CartForm';
-import { cartsApi } from '../api/carts';
-import { toast } from 'react-toastify';
+import React, { useEffect, useState } from 'react';
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  TextField,
+  Typography,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+} from '@mui/material';
+import useCartStore from '../store/cartStore';
 
-export default function OrdersPage() {
-  const queryClient = useQueryClient();
-  const [openModal, setOpenModal] = useState(false);
-  const [selectedCart, setSelectedCart] = useState(null);
+const Carts = () => {
+  const {
+    carts,
+    fetchCarts,
+    addCart,
+    updateCart,
+    deleteCart,
+  } = useCartStore();
 
-  const { data: carts, isLoading, isError } = useQuery({
-    queryKey: ['carts'],
-    queryFn: () => cartsApi.getAll().then(res => res.data),
+  const [open, setOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [currentCart, setCurrentCart] = useState({
+    userId: '',
+    date: '',
+    products: [{ productId: '', quantity: '' }],
   });
+  const [editId, setEditId] = useState(null);
 
-  const deleteMutation = useMutation({
-    mutationFn: cartsApi.delete,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['carts'] });
-      toast.success('Cart deleted successfully');
-    },
-    onError: (error) => {
-      toast.error('Failed to delete cart');
-    },
-  });
+  useEffect(() => {
+    fetchCarts();
+  }, []);
+
+  const handleOpen = () => {
+    setEditMode(false);
+    setCurrentCart({
+      userId: '',
+      date: '',
+      products: [{ productId: '', quantity: '' }],
+    });
+    setOpen(true);
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+  };
+
+  const handleSubmit = () => {
+    if (editMode) {
+      updateCart(editId, currentCart);
+    } else {
+      addCart(currentCart);
+    }
+    setOpen(false);
+  };
 
   const handleEdit = (cart) => {
-    setSelectedCart(cart);
-    setOpenModal(true);
+    setEditMode(true);
+    setEditId(cart.id);
+    setCurrentCart(cart);
+    setOpen(true);
+  };
+
+  const handleDelete = (id) => {
+    deleteCart(id);
+  };
+
+  const handleProductChange = (index, field, value) => {
+    const updatedProducts = [...currentCart.products];
+    updatedProducts[index][field] = value;
+    setCurrentCart({ ...currentCart, products: updatedProducts });
+  };
+
+  const addProductField = () => {
+    setCurrentCart({
+      ...currentCart,
+      products: [...currentCart.products, { productId: '', quantity: '' }],
+    });
   };
 
   return (
-    <Container>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h4">Order Management</Typography>
-        <Button variant="contained" onClick={() => setOpenModal(true)}>
-          Create Cart
-        </Button>
-      </Box>
+    <Box p={3}>
+      <Typography variant="h4" gutterBottom>
+        Carts
+      </Typography>
+      <Button variant="contained" onClick={handleOpen}>
+        Add Cart
+      </Button>
 
-      {isLoading && <CircularProgress />}
-      {isError && <Alert severity="error">Error loading carts</Alert>}
+      <TableContainer component={Paper} sx={{ marginTop: 3 }}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>User ID</TableCell>
+              <TableCell>Date</TableCell>
+              <TableCell>Products</TableCell>
+              <TableCell>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {carts?.map((cart) => (
+              <TableRow key={cart.id}>
+                <TableCell>{cart.userId}</TableCell>
+                <TableCell>{cart.date}</TableCell>
+                <TableCell>
+                  {cart.products?.map((prod, idx) => (
+                    <Box key={idx}>
+                      Product ID: {prod.productId}, Qty: {prod.quantity}
+                    </Box>
+                  ))}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => handleEdit(cart)}
+                    sx={{ mr: 1 }}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    onClick={() => handleDelete(cart.id)}
+                  >
+                    Delete
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
-      <CartTable
-        carts={carts || []}
-        onEdit={handleEdit}
-        onDelete={(id) => deleteMutation.mutate(id)}
-      />
+      <Dialog open={open} onClose={handleClose}>
+        <DialogTitle>{editMode ? 'Edit Cart' : 'Add Cart'}</DialogTitle>
+        <DialogContent>
+          <TextField
+            label="User ID"
+            fullWidth
+            margin="dense"
+            value={currentCart.userId}
+            onChange={(e) =>
+              setCurrentCart({ ...currentCart, userId: e.target.value })
+            }
+          />
+          <TextField
+            label="Date"
+            fullWidth
+            margin="dense"
+            type="date"
+            InputLabelProps={{ shrink: true }}
+            value={currentCart.date}
+            onChange={(e) =>
+              setCurrentCart({ ...currentCart, date: e.target.value })
+            }
+          />
 
-      <CartFormModal
-        open={openModal}
-        onClose={() => {
-          setOpenModal(false);
-          setSelectedCart(null);
-        }}
-        cart={selectedCart}
-      />
-    </Container>
+          {currentCart.products.map((product, index) => (
+            <Box key={index} display="flex" gap={2} mt={1}>
+              <TextField
+                label="Product ID"
+                fullWidth
+                value={product.productId}
+                onChange={(e) =>
+                  handleProductChange(index, 'productId', e.target.value)
+                }
+              />
+              <TextField
+                label="Quantity"
+                fullWidth
+                value={product.quantity}
+                onChange={(e) =>
+                  handleProductChange(index, 'quantity', e.target.value)
+                }
+              />
+            </Box>
+          ))}
+
+          <Button onClick={addProductField} sx={{ mt: 2 }}>
+            + Add Product
+          </Button>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClose}>Cancel</Button>
+          <Button onClick={handleSubmit} variant="contained">
+            {editMode ? 'Update' : 'Add'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
-}
+};
+
+export default Carts;

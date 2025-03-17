@@ -1,63 +1,195 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Container, CircularProgress, Alert, Typography, Box } from '@mui/material';
-import UserTable from '../components/UserTable';
-import UserFormModal from '../components/UserForm';
-import { usersApi } from '../api/users';
-import { toast } from 'react-toastify';
+import React, { useEffect, useState } from 'react';
+import {
+  Box,
+  Typography,
+  Button,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  TextField,
+  DialogActions,
+} from '@mui/material';
+import useUserStore from '../store/userStore';
 
-export default function UsersPage() {
-  const queryClient = useQueryClient();
-  const [openModal, setOpenModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
-
-  const { data: users, isLoading, isError } = useQuery({
-    queryKey: ['users'],
-    queryFn: () => usersApi.getAll().then(res => res.data),
+const Users = () => {
+  const { users, fetchUsers, addUser, updateUser, deleteUser } = useUserStore();
+  const [open, setOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [formData, setFormData] = useState({
+    email: '',
+    username: '',
+    password: '',
+    firstname: '',
+    lastname: '',
+    phone: '',
+    city: '',
+    street: '',
+    number: '',
+    zipcode: '',
+    lat: '',
+    long: '',
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: usersApi.delete,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      toast.success('User deleted successfully');
-    },
-    onError: (error) => {
-      toast.error('Failed to delete user');
-    },
-  });
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
-  const handleEdit = (user) => {
-    setSelectedUser(user);
-    setOpenModal(true);
+  const handleOpen = (user = null) => {
+    setEditingUser(user);
+    if (user) {
+      setFormData({
+        email: user.email,
+        username: user.username,
+        password: user.password || '',
+        firstname: user.name.firstname,
+        lastname: user.name.lastname,
+        phone: user.phone,
+        city: user.address.city,
+        street: user.address.street,
+        number: user.address.number,
+        zipcode: user.address.zipcode,
+        lat: user.address.geolocation.lat,
+        long: user.address.geolocation.long,
+      });
+    } else {
+      setFormData({
+        email: '',
+        username: '',
+        password: '',
+        firstname: '',
+        lastname: '',
+        phone: '',
+        city: '',
+        street: '',
+        number: '',
+        zipcode: '',
+        lat: '',
+        long: '',
+      });
+    }
+    setOpen(true);
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+    setEditingUser(null);
+  };
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async () => {
+    if (editingUser) {
+      await updateUser(editingUser.id, formData);
+    } else {
+      await addUser(formData);
+    }
+    handleClose();
+  };
+
+  const handleDelete = async (id) => {
+    await deleteUser(id);
   };
 
   return (
-    <Container>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h4">User Management</Typography>
-        <Button variant="contained" onClick={() => setOpenModal(true)}>
-          Add User
-        </Button>
-      </Box>
+    <Box>
+      <Typography variant="h4" gutterBottom>
+        Users Management
+      </Typography>
+      <Button variant="contained" color="primary" onClick={() => handleOpen()}>
+        Add User
+      </Button>
 
-      {isLoading && <CircularProgress />}
-      {isError && <Alert severity="error">Error loading users</Alert>}
+      <Table sx={{ mt: 3 }}>
+        <TableHead>
+          <TableRow>
+            <TableCell>ID</TableCell>
+            <TableCell>Username</TableCell>
+            <TableCell>Email</TableCell>
+            <TableCell>Name</TableCell>
+            <TableCell>Phone</TableCell>
+            <TableCell>City</TableCell>
+            <TableCell>Actions</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {users.map((user) => (
+            <TableRow key={user.id}>
+              <TableCell>{user.id}</TableCell>
+              <TableCell>{user.username}</TableCell>
+              <TableCell>{user.email}</TableCell>
+              <TableCell>
+                {user.name.firstname} {user.name.lastname}
+              </TableCell>
+              <TableCell>{user.phone}</TableCell>
+              <TableCell>{user.address.city}</TableCell>
+              <TableCell>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => handleOpen(user)}
+                  sx={{ mr: 1 }}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  size="small"
+                  onClick={() => handleDelete(user.id)}
+                >
+                  Delete
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
-      <UserTable
-        users={users || []}
-        onEdit={handleEdit}
-        onDelete={(id) => deleteMutation.mutate(id)}
-      />
-
-      <UserFormModal
-        open={openModal}
-        onClose={() => {
-          setOpenModal(false);
-          setSelectedUser(null);
-        }}
-        user={selectedUser}
-      />
-    </Container>
+      <Dialog open={open} onClose={handleClose} fullWidth>
+        <DialogTitle>{editingUser ? 'Edit User' : 'Add User'}</DialogTitle>
+        <DialogContent>
+          {[
+            'email',
+            'username',
+            'password',
+            'firstname',
+            'lastname',
+            'phone',
+            'city',
+            'street',
+            'number',
+            'zipcode',
+            'lat',
+            'long',
+          ].map((field) => (
+            <TextField
+              key={field}
+              margin="dense"
+              label={field.charAt(0).toUpperCase() + field.slice(1)}
+              name={field}
+              fullWidth
+              value={formData[field]}
+              onChange={handleChange}
+              type={field === 'password' ? 'password' : 'text'}
+            />
+          ))}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClose}>Cancel</Button>
+          <Button onClick={handleSubmit} variant="contained">
+            {editingUser ? 'Update' : 'Add'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
-}
+};
+
+export default Users;
